@@ -7704,7 +7704,10 @@ namespace CodeWalker
         {
             SetCameraMode("Orthographic");
         }
-
+        private void Export_Click(object sender, EventArgs e)
+        {
+            new Exporter(SelectedItem.Drawable.ToString(), SelectedItem.Drawable.DrawableModelsHigh, GameFileCache);
+        }
         private void SelectionModeComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             SetSelectionMode(SelectionModeComboBox.Text);
