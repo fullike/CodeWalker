@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CodeWalker.GameFiles;
 using CodeWalker.Utils;
 namespace CodeWalker
@@ -112,18 +114,18 @@ namespace CodeWalker
         }
         public Exporter(string name, ResourcePointerList64<DrawableModel> models, GameFileCache Cache)
         {
-            using (StreamWriter FBXwriter = new StreamWriter(name + ".fbx"))
+            using (StreamWriter FBXwriter = new StreamWriter("FBX/" + name + ".fbx"))
             {
                 var timestamp = DateTime.Now;
                 int BaseId = 10000;
-                string RootName = "Root";
 
                 StringBuilder fbx = new StringBuilder();
                 StringBuilder ob = new StringBuilder(); //Objects builder
                 StringBuilder cb = new StringBuilder(); //Connections builder
                 StringBuilder mb = new StringBuilder(); //Materials builder to get texture count in advance
                 StringBuilder cb2 = new StringBuilder(); //and keep connections ordered
-
+                cb.Append("\n}\n");//Objects end
+                cb.Append("\nConnections:  {");
                 List<DrawableGeometry> Geoms = new List<DrawableGeometry>();
                 List<ShaderFX> Shaders = new List<ShaderFX>();
                 List<Texture> Textures = new List<Texture>();
@@ -134,17 +136,35 @@ namespace CodeWalker
                     //SubMesh & Materials
                     foreach (var geom in model.Geometries.data_items)
                     {
-                        var gname = geom.ToString();
                         if ((geom.Shader != null) && (geom.Shader.ParametersList != null) && (geom.Shader.ParametersList.Hashes != null))
                         {
                             Geoms.Add(geom);
                             Shaders.Add(geom.Shader);
+                            var gname = "Geom" + Geoms.Count;
+                            //创建节点
+                            ob.AppendFormat("\n\tModel: 1{0}, \"Model::{1}\", \"Mesh\" {{", BaseId + Geoms.Count, gname);
+                            ob.Append("\n\t\tVersion: 232");
+                            ob.Append("\n\t\tProperties70:  {");
+                            ob.Append("\n\t\t\tP: \"InheritType\", \"enum\", \"\", \"\",1");
+                            ob.Append("\n\t\t\tP: \"ScalingMax\", \"Vector3D\", \"Vector\", \"\",0,0,0");
+                            ob.Append("\n\t\t\tP: \"DefaultAttributeIndex\", \"int\", \"Integer\", \"\",0");
+                            ob.AppendFormat("\n\t\t\tP: \"Lcl Translation\", \"Lcl Translation\", \"\", \"A\",{0},{1},{2}", 0, 0, 0);
+                            ob.AppendFormat("\n\t\t\tP: \"Lcl Rotation\", \"Lcl Rotation\", \"\", \"A\",{0},{1},{2}", 0, 0, 0);//handedness is switched in quat
+                            ob.AppendFormat("\n\t\t\tP: \"Lcl Scaling\", \"Lcl Scaling\", \"\", \"A\",{0},{1},{2}", 1, 1, 1);
+                            ob.Append("\n\t\t}");
+                            ob.Append("\n\t\tShading: T");
+                            ob.Append("\n\t\tCulling: \"CullingOff\"\n\t}");
 
-                            cb2.AppendFormat("\n\n\t;Geometry::, Model::{0}", RootName);
-                            cb2.AppendFormat("\n\tC: \"OO\",3{0},1{1}", BaseId + Geoms.Count, BaseId);
+                            //把节点挂在根节点上
+                            cb.AppendFormat("\n\n\t;Model::{0}, Model::RootNode", gname);
+                            cb.AppendFormat("\n\tC: \"OO\",1{0},0", BaseId + Geoms.Count);
 
-                            cb2.AppendFormat("\n\n\t;Material::, Model::{0}", RootName);
-                            cb2.AppendFormat("\n\tC: \"OO\",6{0},1{1}", BaseId + Shaders.Count, BaseId);
+                            //把几何体挂在节点上
+                            cb2.AppendFormat("\n\n\t;Geometry::, Model::{0}", gname);
+                            cb2.AppendFormat("\n\tC: \"OO\",3{0},1{1}", BaseId + Geoms.Count, BaseId + Geoms.Count);
+                            //把材质挂在节点上
+                            cb2.AppendFormat("\n\n\t;Material::, Model::{0}", gname);
+                            cb2.AppendFormat("\n\tC: \"OO\",6{0},1{1}", BaseId + Shaders.Count, BaseId + Geoms.Count);
 
                             var pl = geom.Shader.ParametersList;
                             var h = pl.Hashes;
@@ -168,8 +188,21 @@ namespace CodeWalker
                                     {
                                         Textures.Add(t);
                                         cb2.AppendFormat("\n\n\t;Texture::, Material::{0}", geom.Shader.Name);
-                                        cb2.AppendFormat("\n\tC: \"OP\",7{0},6{1}, \"", BaseId + Textures.Count, BaseId + Shaders.Count);
-                                        tstr = string.Format("{0} ({1}x{2}, embedded)", tex.Name, t.Width, t.Height);
+                                        cb2.AppendFormat("\n\tC: \"OP\",7{0},6{1}, ", BaseId + Textures.Count, BaseId + Shaders.Count);
+                                        switch (hash.ToString().Trim())
+                                        {
+                                            case "DiffuseSampler":
+                                                cb2.Append("\"DiffuseColor\"");
+                                                break;
+                                            case "BumpSampler":
+                                                cb2.Append("\"NormalMap\"");
+                                                break;
+                                            case "SpecSampler":
+                                                cb2.Append("\"SpecularColor\"");
+                                                break;
+                                            case "DetailSampler":
+                                                break;
+                                        }
                                     }
                                 }
                             }
@@ -247,7 +280,13 @@ namespace CodeWalker
                 FBXwriter.Write(fbx);
                 fbx.Clear();
 
-                for( int i = 0; i < Shaders.Count; i++)
+
+
+
+
+
+
+                for ( int i = 0; i < Shaders.Count; i++)
                 {
                     ShaderFX Shader = Shaders[i];
                     mb.AppendFormat("\n\tMaterial: 6{0}, \"Material::{1}\", \"\" {{", BaseId + i + 1, Shader.Name);
@@ -270,15 +309,25 @@ namespace CodeWalker
                     if (ob.Length > (8 * 0x100000))
                     { FBXwriter.Write(ob); ob.Clear(); }
                 }
-                //    cb.Append("\n}\n");//Objects end
-                //    cb.Append("\nConnections:  {");
-
                 for(int i = 0; i < Textures.Count; i++)
                 {
                     Texture t = Textures[i];
                     //TODO check texture type and set path accordingly; eg. CubeMap, Texture3D
-                    string texFilename = t.Name + ".dds";
-                    File.WriteAllBytes(texFilename, DDSIO.GetDDSFile(t));
+                    string texFilename = Path.GetFullPath("FBX/" + t.Name + ".png");
+
+                    byte[] bytes = DDSIO.GetPixels(t, 0);
+                    FileStream stream = new FileStream(texFilename, FileMode.Create);
+                    PngBitmapEncoder encoder = new PngBitmapEncoder();
+                    encoder.Interlace = PngInterlaceOption.On;
+                    encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(t.Width, t.Height, 96, 96, PixelFormats.Bgra32, null, bytes, t.Width * 4)));
+                    encoder.Save(stream);
+                    stream.Close();
+
+
+                //  File.WriteAllBytes(texFilename, DDSIO.GetDDSFile(t));
+
+
+
                     ob.AppendFormat("\n\tTexture: 7{0}, \"Texture::{1}\", \"\" {{", BaseId + i + 1, t.Name);
                     ob.Append("\n\t\tType: \"TextureVideoClip\"");
                     ob.Append("\n\t\tVersion: 202");
@@ -289,9 +338,13 @@ namespace CodeWalker
                     ob.Append("\n\t\t}");
                     ob.AppendFormat("\n\t\tMedia: \"Video::{0}\"", t.Name);
                     ob.AppendFormat("\n\t\tFileName: \"{0}\"", texFilename);
-                    ob.AppendFormat("\n\t\tRelativeFilename: \"Texture2D\\{0}\"", Path.GetFileName(texFilename));
+                    ob.AppendFormat("\n\t\tRelativeFilename: \"{0}\"", texFilename);
                     ob.Append("\n\t}");
                 }
+
+                ob.Append(mb); mb.Clear();
+                cb.Append(cb2); cb2.Clear();
+
                 FBXwriter.Write(ob);
                 ob.Clear();
 
@@ -333,9 +386,9 @@ namespace CodeWalker
                 ob.AppendFormat("\n\t\tPolygonVertexIndex: *{0} {{\n\t\t\ta: ", Mesh.IndicesCount);
 
                 lineSplit = ob.Length;
-                for (int f = 0; f < Mesh.IndicesCount; f++)
+                for (int f = 0; f < Mesh.IndicesCount / 3; f++)
                 {
-                    ob.AppendFormat("{0},", Mesh.IndexBuffer.Indices[f]);
+                    ob.AppendFormat("{0},{1},{2},", Mesh.IndexBuffer.Indices[f * 3], Mesh.IndexBuffer.Indices[f * 3 + 2], (-Mesh.IndexBuffer.Indices[f * 3 + 1] - 1));
 
                     if (ob.Length - lineSplit > 2000)
                     {
@@ -438,9 +491,11 @@ namespace CodeWalker
                 ob.Append("\n\t\t\tMappingInformationType: \"");
                 ob.Append("AllSame\"");
                 ob.Append("\n\t\t\tReferenceInformationType: \"IndexToDirect\"");
-                ob.AppendFormat("\n\t\t\tMaterials: *{0} {{", Mesh.TrianglesCount);
+            //  ob.AppendFormat("\n\t\t\tMaterials: *{0} {{", Mesh.TrianglesCount);
+                ob.AppendFormat("\n\t\t\tMaterials: *{0} {{", 1);
                 ob.Append("\n\t\t\t\t");
-                ob.Append("0");
+            //  ob.Append("0");
+                ob.Append("a: 0");
                 ob.Append("\n\t\t\t}\n\t\t}");
 #endregion
 

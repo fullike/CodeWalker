@@ -94,6 +94,7 @@
     <Reference Include="FastColoredTextBox, Version=2.16.24.0, Culture=neutral, PublicKeyToken=fb8aa12b994ef61b, processorArchitecture=MSIL">
       <HintPath>packages\FCTB.2.16.24\lib\FastColoredTextBox.dll</HintPath>
     </Reference>
+    <Reference Include="PresentationCore" />
     <Reference Include="SharpDX, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
       <HintPath>packages\SharpDX.4.0.1\lib\net45\SharpDX.dll</HintPath>
     </Reference>
@@ -135,6 +136,7 @@
     <Reference Include="WeifenLuo.WinFormsUI.Docking.ThemeVS2015, Version=3.0.6.0, Culture=neutral, PublicKeyToken=5cded1a1a0a7b481, processorArchitecture=MSIL">
       <HintPath>packages\DockPanelSuite.ThemeVS2015.3.0.6\lib\net40\WeifenLuo.WinFormsUI.Docking.ThemeVS2015.dll</HintPath>
     </Reference>
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AboutForm.cs">
@@ -155,6 +157,7 @@
     <Compile Include="ExploreForm.Designer.cs">
       <DependentUpon>ExploreForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Exporter.cs" />
     <Compile Include="ExtractKeysForm.cs">
       <SubType>Form</SubType>
     </Compile>
